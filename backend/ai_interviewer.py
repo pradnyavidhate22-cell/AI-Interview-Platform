@@ -478,22 +478,7 @@ class AIInterviewer:
                 return row
         return None
 
-    def _ensure_models(self) -> None:
-        """Load NLP models on first use (avoids slow server startup)."""
-        if self.nlp is None:
-            try:
-                self.nlp = spacy.load("en_core_web_sm")
-            except Exception:
-                # spaCy model is optional; fallback to heuristics if missing.
-                self.nlp = None
-        if self.sentiment_analyzer is None:
-            try:
-                from transformers import pipeline
-                self.sentiment_analyzer = pipeline("sentiment-analysis")
-            except Exception:
-                # If transformers/torch is misconfigured, keep the backend usable.
-                self.sentiment_analyzer = None
-
+    
     def _try_groq_interview_update(
         self,
         question: str,
@@ -844,89 +829,9 @@ Return ONLY valid JSON (no markdown) in this exact schema:
             "topic": self.current_topic
         }
 
-    def _calculate_response_quality(self, doc: spacy.tokens.Doc, sentiment: Dict) -> float:
-        """Calculate a quality score for the response."""
-        # Base score from sentiment
-        base_score = 0.5 if sentiment["label"] == "POSITIVE" else 0.3
-        
-        # Technical terms bonus
-        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
-        term_bonus = min(len(technical_terms) * 0.1, 0.3)
-        
-        # Length bonus
-        length_bonus = min(len(doc) / 200, 0.2)
-        
-        return min(base_score + term_bonus + length_bonus, 1.0)
-
-    def _generate_feedback(self, doc: spacy.tokens.Doc, sentiment: Dict) -> str:
-        """Generate feedback based on response analysis."""
-        # Check for technical terms
-        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
-        
-        if len(technical_terms) < 3:
-            return "Try to use more technical terms and be more specific in your explanation."
-        elif sentiment["label"] == "NEGATIVE":
-            return "Your explanation seems unclear. Try to break down the problem into smaller parts."
-        else:
-            return "Good explanation! Let's explore this further."
-
-    def _generate_follow_up(self, doc: spacy.tokens.Doc, sentiment: Dict, response_text: str) -> str:
-        """Generate appropriate follow-up question based on response analysis."""
-        # Check response length and complexity
-        if len(doc) < 50:
-            return random.choice(self.follow_ups["understanding"])
-        elif "complexity" not in response_text.lower():
-            return random.choice(self.follow_ups["optimization"])
-        else:
-            return random.choice(self.follow_ups["implementation"])
-
-    def _generate_suggestions(self, doc: spacy.tokens.Doc, sentiment: Dict, response_quality: float) -> List[str]:
-        """Heuristic suggestions (kept lightweight: no extra model calls)."""
-        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
-        suggestions: List[str] = []
-
-        if len(technical_terms) < 3:
-            suggestions.append("Add more technical terms and be specific about your approach.")
-
-        if len(doc) < 50:
-            suggestions.append("Expand your explanation with step-by-step reasoning (how you get from idea to result).")
-
-        if sentiment["label"] == "NEGATIVE":
-            suggestions.append("Clarify your structure: intro -> approach -> key steps -> complexity/edge cases.")
-
-        if response_quality < 0.6:
-            suggestions.append("State the time/space complexity and mention at least one edge case.")
-
-        if not suggestions:
-            suggestions.append("Keep going—try adding trade-offs and complexity details to make your answer stronger.")
-
-        return suggestions
-
-    def _generate_improved_answer(self, doc: spacy.tokens.Doc, sentiment: Dict) -> str:
-        """Generate an 'improved answer' template using extracted keywords."""
-        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
-        # De-duplicate while preserving order (small heuristic for nicer output)
-        seen = set()
-        keywords = []
-        for t in technical_terms:
-            lt = t.lower()
-            if lt not in seen:
-                seen.add(lt)
-                keywords.append(t)
-            if len(keywords) >= 6:
-                break
-
-        keyword_line = ", ".join(keywords) if keywords else "key ideas"
-        clarity_line = "Try to be clearer and more structured in your explanation." if sentiment["label"] == "NEGATIVE" else "Your core idea is good—make it more complete and precise."
-
-        return (
-            f"A stronger answer for: {self.current_question}\n"
-            f"- Core idea: explain the main approach in one or two sentences.\n"
-            f"- Steps: walk through the key steps (what you do first, next, and why).\n"
-            f"- Complexity/edge cases: mention time/space complexity and at least one edge case.\n"
-            f"- Key terms to include: {keyword_line}\n"
-            f"{clarity_line}"
-        )
+    
+    
+    
 
     def get_interview_summary(self) -> Dict:
         """Return a summary of the interview session."""
