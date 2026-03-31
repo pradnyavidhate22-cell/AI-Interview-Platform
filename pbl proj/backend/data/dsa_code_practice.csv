@@ -1,0 +1,83 @@
+topic,difficulty,title,description,approach,time_complexity,space_complexity,platform,entry_function,test_cases_json,template_python
+arrays,easy,Find maximum and minimum element in an array,Given an array of integers return both the minimum and the maximum value.,Track min and max in one linear scan; compare each element.,O(n),O(1),GeeksforGeeks,find_min_max,"[{""input"": [3, 1, 4, 1, 5], ""output"": [1, 5]}, {""input"": [7], ""output"": [7, 7]}]","def find_min_max(arr):
+    # return [min_val, max_val]
+    pass"
+arrays,easy,Reverse the array,Reverse the order of elements in the given list in-place or return a new reversed list.,Two pointers from both ends swapping; or slice / new list.,O(n),O(1),LeetCode,reverse_array,"[{""input"": [1, 2, 3, 4], ""output"": [4, 3, 2, 1]}, {""input"": [5], ""output"": [5]}]","def reverse_array(arr):
+    pass"
+arrays,easy,Find Second Largest Element,Write a function to find the second largest element in an array.,Track max and second max in one pass; handle duplicates.,O(n),O(1),LeetCode,find_second_largest,"[{""input"": [1, 2, 3, 4, 5], ""output"": 4}, {""input"": [5, 5, 5, 5], ""output"": 5}, {""input"": [1], ""output"": null}]","def find_second_largest(arr):
+    pass"
+arrays,medium,Maximum Subarray (Kadane),Find the contiguous subarray with the largest sum.,Kadane: keep running sum; reset when sum < 0.,O(n),O(1),LeetCode,max_subarray_sum,"[{""input"": [-2, 1, -3, 4, -1, 2, 1, -5, 4], ""output"": 6}, {""input"": [1], ""output"": 1}]","def max_subarray_sum(nums):
+    pass"
+arrays,medium,Chocolate Distribution Problem,Given packets m and students n minimize difference between max and min in any window of size m.,Sort array; slide window of size m; minimize arr[i+m-1]-arr[i].,O(n log n),O(1),GFG,,,"def chocolate_distribution(arr, m, n):
+    # arr sorted conceptually; return minimum unfairness
+    pass"
+arrays,medium,Sort array of 0s 1s and 2s,Dutch national flag: sort in-place.,Three pointers low mid high partitioning around 1.,O(n),O(1),LeetCode,,,"def sort_colors(nums):
+    pass"
+arrays,medium,Container With Most Water,Find two lines that together with x-axis forms container holding most water.,Two pointers from ends; move shorter side inward.,O(n),O(1),LeetCode,,,"def max_area(height):
+    pass"
+arrays,hard,Trapping Rain Water,Compute trapped water between bars.,Prefix/suffix max arrays or two pointers with left/right max.,O(n),O(1),LeetCode,,,"def trap(height):
+    pass"
+arrays,hard,Median of Two Sorted Arrays,Find median of two sorted arrays of different sizes.,Binary search on partition; compare boundary elements.,O(log(min(m,n))),O(1),LeetCode,,,"def find_median_sorted_arrays(nums1, nums2):
+    pass"
+linked_lists,easy,Reverse a Linked List,Reverse pointers iteratively or recursively.,Iterative: prev curr next; recursive: reverse rest then fix head.,O(n),O(1),LeetCode,,,"def reverse_list(head):
+    # head is ListNode or None
+    pass"
+linked_lists,easy,Detect Loop in a Linked List,Determine if linked list has a cycle.,Floyd tortoise and hare; if fast meets slow cycle exists.,O(n),O(1),LeetCode,,,"def has_cycle(head):
+    pass"
+linked_lists,medium,Remove Duplicates from Unsorted Linked List,Remove duplicate values preserving first occurrence.,Hash set of seen values while traversing.,O(n),O(n),GFG,,,"def remove_duplicates(head):
+    pass"
+linked_lists,medium,Intersection of Two Linked Lists,Find node where two lists merge.,Align lengths then advance both together; or hash first list nodes.,O(m+n),O(1),LeetCode,,,"def get_intersection_node(headA, headB):
+    pass"
+linked_lists,medium,Merge Two Sorted Lists,Merge into one sorted linked list.,Dummy node; compare heads; append smaller.,O(m+n),O(1),LeetCode,,,"def merge_two_lists(list1, list2):
+    pass"
+linked_lists,hard,Clone a Linked List with Random Pointer,Deep copy list with arbitrary random pointers.,Old-to-new map in two passes or interleave nodes trick.,O(n),O(n),LeetCode,,,"def copy_random_list(head):
+    pass"
+trees,easy,Level Order Traversal,Print level by level left to right.,BFS with queue; track level size.,O(n),O(n),LeetCode,,,"def level_order(root):
+    pass"
+trees,easy,Height of a Binary Tree,Maximum depth from root to leaf.,Recursive max depth of children + 1.,O(n),O(h),GFG,,,"def tree_height(root):
+    pass"
+trees,medium,Diameter of a Binary Tree,Longest path between any two nodes may or may not pass root.,DFS return height; diameter = max left+right at each node.,O(n),O(h),LeetCode,,,"def diameter_of_binary_tree(root):
+    pass"
+trees,medium,Lowest Common Ancestor in a BST,Find LCA of two nodes in BST.,Walk from root: both < go left both > go right else current is LCA.,O(h),O(1),LeetCode,,,"def lowest_common_ancestor(root, p, q):
+    pass"
+trees,medium,Validate Binary Search Tree,Check BST property for all nodes.,Inorder must be strictly increasing; or bounds min/max per node.,O(n),O(h),LeetCode,,,"def is_valid_bst(root):
+    pass"
+trees,hard,Serialize and Deserialize Binary Tree,Convert tree to string and back.,Preorder with null markers; or BFS level order.,O(n),O(n),LeetCode,,,"class Codec:
+    def serialize(self, root):
+        pass
+    def deserialize(self, data):
+        pass"
+trees,hard,Binary Tree Maximum Path Sum,Path may start and end at any nodes.,Post-order: return max single chain; update global max with split.,O(n),O(h),LeetCode,,,"def max_path_sum(root):
+    pass"
+graphs,easy,BFS of Graph,Traverse graph breadth-first from source.,Queue; mark visited; enqueue neighbors.,O(V+E),O(V),GFG,,,"def bfs_of_graph(adj, start):
+    pass"
+graphs,easy,DFS of Graph,Depth-first traversal from node.,Recursion or stack; mark visited.,O(V+E),O(V),GFG,,,"def dfs_of_graph(adj, start):
+    pass"
+graphs,medium,Detect Cycle in an Undirected Graph,Check if graph contains cycle.,DFS with parent tracking; or union-find.,O(V+E),O(V),GFG,,,"def is_cycle_undirected(V, adj):
+    pass"
+graphs,medium,Topological Sort,Linear ordering respecting directed edges.,Kahn BFS indegree zero; or DFS finish times.,O(V+E),O(V),LeetCode,,,"def topological_sort(V, adj):
+    pass"
+graphs,medium,Number of Islands,Count connected components of 1s in grid.,DFS/BFS flood fill on each unvisited 1.,O(mn),O(mn),LeetCode,,,"def num_islands(grid):
+    pass"
+graphs,hard,Shortest Path in Weighted DAG,Shortest paths from source in directed acyclic graph.,Topo sort then relax edges in order.,O(V+E),O(V),GFG,,,"def shortest_path_dag(V, adj, src):
+    pass"
+graphs,hard,Dijkstra Shortest Path,Single-source shortest paths non-negative weights.,Min-heap by distance; relax neighbors.,O((V+E)log V),O(V),GFG,,,"def dijkstra(V, adj, src):
+    pass"
+arrays,medium,Two Sum,Return indices of two numbers that add to target.,Hash map value to index while scanning.,O(n),O(n),LeetCode,,,"def two_sum(nums, target):
+    pass"
+arrays,medium,Product of Array Except Self,Return array where output[i] is product of all except i.,Prefix and suffix products without division.,O(n),O(1),LeetCode,,,"def product_except_self(nums):
+    pass"
+arrays,easy,Contains Duplicate,Return True if any value appears at least twice.,Use set; or sort and check adjacent.,O(n),O(n),LeetCode,contains_duplicate,"[{""input"": [1, 2, 3, 1], ""output"": true}, {""input"": [1, 2, 3], ""output"": false}]","def contains_duplicate(nums):
+    pass"
+linked_lists,easy,Find Middle of Linked List,Return middle node; if two middles return second.,Slow/fast pointers; fast moves 2 steps.,O(n),O(1),LeetCode,,,"def middle_node(head):
+    pass"
+linked_lists,medium,Add Two Numbers,Add numbers represented as reversed digit linked lists.,Digit-wise carry like elementary addition.,O(max(m,n)),O(1),LeetCode,,,"def add_two_numbers(l1, l2):
+    pass"
+trees,easy,Inorder Traversal,Left root right.,Recursive or iterative stack.,O(n),O(h),LeetCode,,,"def inorder_traversal(root):
+    pass"
+trees,easy,Same Tree,Check if two binary trees are identical.,Recursive compare values and subtrees.,O(n),O(h),LeetCode,,,"def is_same_tree(p, q):
+    pass"
+graphs,medium,Course Schedule,Detect if you can finish all courses given prerequisites.,Cycle detection in directed graph; topo sort.,O(V+E),O(V),LeetCode,,,"def can_finish(numCourses, prerequisites):
+    pass"
+graphs,medium,Rotting Oranges,Minimum minutes until no fresh orange; -1 if impossible.,Multi-source BFS from rotten cells.,O(mn),O(mn),LeetCode,,,"def oranges_rotting(grid):
+    pass"
