@@ -2,7 +2,6 @@ import random
 import re
 from typing import List, Dict, Tuple, Optional
 import csv
-import spacy
 import json
 import subprocess
 import tempfile
