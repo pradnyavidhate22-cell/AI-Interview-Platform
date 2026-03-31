@@ -124,4 +124,4 @@ def get_interview_summary():
 if __name__ == '__main__':
     # If Windows blocks port 5000, use: set PORT=5001 and REACT_APP_API_URL=http://127.0.0.1:5001 in frontend/.env
     port = int(os.environ.get("PORT", os.environ.get("FLASK_RUN_PORT", 5000)))
-    app.run(debug=True, port=port)
+    app.run(host="0.0.0.0", port=port)
