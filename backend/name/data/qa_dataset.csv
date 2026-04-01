@@ -1,0 +1,16 @@
+question,answer,category,difficulty
+What is a class,A class is a blueprint from which objects are created,OOPs,Easy
+What is an object,An object is an instance of a class,OOPs,Easy
+What is encapsulation,Encapsulation wraps data and methods together in a class,OOPs,Easy
+What is abstraction,Abstraction hides internal details and shows only functionality,OOPs,Easy
+What is inheritance,Inheritance lets a child class acquire properties of a parent class,OOPs,Easy
+What is polymorphism,Polymorphism means one interface used for different types,OOPs,Easy
+What is a stack,A stack follows LIFO Last In First Out with push pop peek,DSA,Easy
+What is a queue,A queue follows FIFO First In First Out with enqueue and dequeue,DSA,Easy
+What is binary search,Binary search finds target in sorted array by halving the range,DSA,Easy
+What is Big O notation,Big O describes the upper bound of time or space complexity,DSA,Easy
+What is a linked list,A linked list stores elements in nodes where each node points to next,DSA,Easy
+What is recursion,A recursive function calls itself to solve a smaller version of the problem,DSA,Easy
+What is dynamic programming,Dynamic programming solves problems by caching overlapping subproblem results,DSA,Hard
+What is a hash table,A hash table maps keys to values using a hash function with O1 average operations,DSA,Medium
+What is a binary tree,A binary tree is where each node has at most two children left and right,DSA,Easy
