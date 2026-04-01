@@ -476,9 +476,7 @@ class AIInterviewer:
                 return row
         return None
 
-    # ------------------------------------------------------------------ #
-    #  Heuristic NLP helpers (no spaCy — pure Python)                     #
-    # ------------------------------------------------------------------ #
+    
 
     def _tokenize(self, text: str) -> List[str]:
         """Simple whitespace + punctuation tokenizer."""
@@ -672,10 +670,7 @@ Return ONLY valid JSON (no markdown) in this exact schema:
         return f"Let's discuss {self.current_topic.replace('_', ' ')}. {self.current_question}"
 
     def analyze_response(self, response: str) -> Dict:
-        """
-        Analyze the student's response and generate appropriate follow-up.
-        Uses pure-Python heuristics (no spaCy).
-        """
+        
         response_text  = (response or "").strip()
         response_lower = response_text.lower()
 
