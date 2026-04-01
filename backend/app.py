@@ -5,7 +5,7 @@ import os
 import sys
 
 # Ensure `ai_interviewer.py` (one directory up from this file) is importable.
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from ai_interviewer import AIInterviewer
 
 app = Flask(__name__)
