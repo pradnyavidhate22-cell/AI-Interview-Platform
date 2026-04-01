@@ -2,6 +2,7 @@ import random
 import re
 from typing import List, Dict, Tuple, Optional
 import csv
+import spacy
 import json
 import subprocess
 import tempfile
@@ -294,25 +295,25 @@ class ConfidenceTracker:
             ]
         }
 
-    def update_confidence(self, topic: str, confidence_score: float,
+    def update_confidence(self, topic: str, confidence_score: float, 
                          problem_success: bool = None, response_quality: float = None):
         """Update confidence metrics for a topic."""
         timestamp = datetime.now()
         self.confidence_data["topics"][topic].append(confidence_score)
         self.confidence_data["timestamps"].append(timestamp)
-
+        
         if problem_success is not None:
             self.confidence_data["problem_success"][topic].append(problem_success)
         if response_quality is not None:
             self.confidence_data["response_quality"][topic].append(response_quality)
-
+        
         # Update overall confidence
         topics_map = self.confidence_data["topics"]
         if topics_map:
             self.confidence_data["overall"].append(
                 sum(topics_map[t][-1] for t in topics_map) / len(topics_map)
             )
-
+        
         self._update_areas(topic, confidence_score)
 
     def _update_areas(self, topic: str, confidence_score: float):
@@ -336,14 +337,14 @@ class ConfidenceTracker:
             "problem_success_rate": {},
             "response_quality": {}
         }
-
+        
         for topic in self.confidence_data["topics"]:
             summary["topic_confidence"][topic] = np.mean(self.confidence_data["topics"][topic])
             if self.confidence_data["problem_success"][topic]:
                 summary["problem_success_rate"][topic] = np.mean(self.confidence_data["problem_success"][topic])
             if self.confidence_data["response_quality"][topic]:
                 summary["response_quality"][topic] = np.mean(self.confidence_data["response_quality"][topic])
-
+        
         return summary
 
     def get_improvement_plan(self, topic: str) -> List[str]:
@@ -360,41 +361,43 @@ class ConfidenceTracker:
     def generate_confidence_plot(self, topic: str = None) -> str:
         """Generate a confidence trend plot and save it to a file."""
         plt.figure(figsize=(10, 6))
-
-        timestamps = self.confidence_data["timestamps"]
-        if topic and self.confidence_data["topics"].get(topic):
-            topic_vals = self.confidence_data["topics"][topic]
-            aligned_ts = timestamps[-len(topic_vals):] if timestamps else list(range(len(topic_vals)))
-            plt.plot(aligned_ts, topic_vals, label=topic, marker='o')
-        elif self.confidence_data["overall"]:
-            overall_vals = self.confidence_data["overall"]
-            aligned_ts = timestamps[-len(overall_vals):] if timestamps else list(range(len(overall_vals)))
-            plt.plot(aligned_ts, overall_vals, label='Overall', marker='o')
+        
+        if topic:
+            # Plot specific topic confidence
+            plt.plot(self.confidence_data["timestamps"], 
+                    self.confidence_data["topics"][topic], 
+                    label=topic, marker='o')
         else:
-            plt.text(0.5, 0.5, "No confidence data yet", ha='center', va='center')
-            plt.xlim(0, 1)
-            plt.ylim(0, 1)
-
+            # Plot overall confidence
+            plt.plot(self.confidence_data["timestamps"], 
+                    self.confidence_data["overall"], 
+                    label='Overall', marker='o')
+        
         plt.title('Confidence Level Trends')
         plt.xlabel('Time')
         plt.ylabel('Confidence Score')
         plt.legend()
         plt.grid(True)
-
+        
+        # Save plot to temporary file
         plot_path = tempfile.mktemp(suffix='.png')
         plt.savefig(plot_path)
         plt.close()
-
+        
         return plot_path
 
 class AIInterviewer:
     def __init__(self):
+        # Lazy-load heavy NLP models so Flask can start quickly.
+        self.nlp = None
+        self.sentiment_analyzer = None
+        
         # Initialize code practice environment
         self.code_env = CodePracticeEnvironment()
-
+        
         # Initialize confidence tracker
         self.confidence_tracker = ConfidenceTracker()
-
+        
         # Load Q&A dataset for richer interview questions (fallback to built-ins if missing)
         self.dataset_questions: List[Dict[str, str]] = []
         self.dataset_index: int = 0
@@ -416,9 +419,10 @@ class AIInterviewer:
                         }
                     )
         except Exception:
+            # If dataset not available, we just rely on built-in topics.
             self.dataset_questions = []
             self.dataset_index = 0
-
+        
         # Data structure topics and questions (kept as fallback)
         self.topics = {
             "arrays": [
@@ -442,7 +446,7 @@ class AIInterviewer:
                 "Explain how to perform a depth-first search on a graph."
             ]
         }
-
+        
         # Follow-up questions based on response quality
         self.follow_ups = {
             "optimization": [
@@ -461,9 +465,8 @@ class AIInterviewer:
                 "How would this solution scale with larger inputs?"
             ]
         }
-
+        
         self.current_topic = None
-        self.current_code_topic = None
         self.current_question = None
         self.interview_history = []
 
@@ -476,23 +479,21 @@ class AIInterviewer:
                 return row
         return None
 
-    
-
-    def _tokenize(self, text: str) -> List[str]:
-        """Simple whitespace + punctuation tokenizer."""
-        return [w.strip(".,!?;:\"'()[]{}") for w in text.split() if w.strip()]
-
-    def _technical_terms(self, words: List[str]) -> List[str]:
-        """Return words that look like technical/content words (length > 4)."""
-        return [w for w in words if len(w) > 4]
-
-    def _score_response(self, words: List[str], tech_terms: List[str]) -> float:
-        base_score   = 0.3
-        term_bonus   = min(len(tech_terms) * 0.02, 0.35)
-        length_bonus = min(len(words) / 200, 0.2)
-        return min(base_score + term_bonus + length_bonus, 1.0)
-
-    # ------------------------------------------------------------------ #
+    def _ensure_models(self) -> None:
+        """Load NLP models on first use (avoids slow server startup)."""
+        if self.nlp is None:
+            try:
+                self.nlp = spacy.load("en_core_web_sm")
+            except Exception:
+                # spaCy model is optional; fallback to heuristics if missing.
+                self.nlp = None
+        if self.sentiment_analyzer is None:
+            try:
+                from transformers import pipeline
+                self.sentiment_analyzer = pipeline("sentiment-analysis")
+            except Exception:
+                # If transformers/torch is misconfigured, keep the backend usable.
+                self.sentiment_analyzer = None
 
     def _try_groq_interview_update(
         self,
@@ -512,7 +513,9 @@ class AIInterviewer:
         except Exception:
             return None
 
-        api_key = "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"
+        # Key currently exists in this repo in `backend/name/utils/groq_helper.py`.
+        # Keeping it here minimizes changes, but you should move to env var later.
+        api_key = os.environ.get("GROQ_API_KEY")
 
         try:
             client = Groq(api_key=api_key)
@@ -540,13 +543,13 @@ Heuristic draft (use as baseline; do not ignore):
    - Explicitly state what is correct or incorrect about that phrase for THIS question.
    - If the candidate gave no useful answer (empty / "I don't know"), say that clearly and still provide the improved answer.
 3) If incorrect/incomplete, explain specifically what is wrong/missing about THIS question.
-4) Produce improved_answer that directly answers the given question with the correct ideas (no generic advice, no other topics). It must correct the candidate's mistakes if any.
+4) Produce improved_answer that directly answers the given question with the correct ideas (no generic advice, no other topics). It must correct the candidate’s mistakes if any.
 5) Produce suggestions that are actionable and directly related to the given question (not generic study tips).
 6) Set next_question to the provided next_question suggestion unless you are confident it should be changed.
 
 Output rules:
 - improved_answer must directly answer the given question (no generic content).
-- suggestions must be an array of EXACTLY 3 strings, each directly tied to the given question AND the candidate's mistakes (when present).
+- suggestions must be an array of EXACTLY 3 strings, each directly tied to the given question AND the candidate’s mistakes (when present).
 - feedback must include a "You said:" quote from Candidate Answer.
 - next_question must be a single string.
 
@@ -566,6 +569,7 @@ Return ONLY valid JSON in this exact schema (no markdown, no extra text):
             )
             raw = completion.choices[0].message.content or ""
 
+            # Extract JSON if the model adds any leading/trailing text.
             start = raw.find("{")
             end = raw.rfind("}")
             if start == -1 or end == -1 or end <= start:
@@ -575,11 +579,13 @@ Return ONLY valid JSON in this exact schema (no markdown, no extra text):
             if not isinstance(payload, dict):
                 return None
 
+            # Ensure required keys exist; let missing keys fall back to heuristics.
             for k in ["feedback", "next_question", "improved_answer", "suggestions"]:
                 if k not in payload:
                     return None
             if not isinstance(payload["suggestions"], list):
                 return None
+            # Enforce schema rigidity so the frontend stays consistent.
             if len(payload["suggestions"]) != 3:
                 return None
 
@@ -598,8 +604,7 @@ Return ONLY valid JSON in this exact schema (no markdown, no extra text):
         if not cp:
             return None
 
-        api_key = "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"
-
+        api_key = os.environ.get("GROQ_API_KEY")
         try:
             client = Groq(api_key=api_key)
             prob_block = "\n".join(
@@ -659,31 +664,43 @@ Return ONLY valid JSON (no markdown) in this exact schema:
 
     def start_interview(self) -> str:
         """Start the interview with a random topic and question."""
+        # Prefer dataset-driven questions when available
         if self.dataset_questions:
             row = self.dataset_questions[self.dataset_index % len(self.dataset_questions)]
             self.current_topic = row["category"]
             self.current_question = row["question"]
+            # Move index so the next question is different
             self.dataset_index = (self.dataset_index + 1) % len(self.dataset_questions)
             return f"Let's discuss {self.current_topic.replace('_', ' ')}. {self.current_question}"
+        # Fallback: built-in topic lists
         self.current_topic = random.choice(list(self.topics.keys()))
         self.current_question = random.choice(self.topics[self.current_topic])
         return f"Let's discuss {self.current_topic.replace('_', ' ')}. {self.current_question}"
 
     def analyze_response(self, response: str) -> Dict:
-        
-        response_text  = (response or "").strip()
+        """
+        Analyze the student's response and generate appropriate follow-up.
+        Returns a structured object for the frontend.
+        """
+        # Load models on demand (first request may be slow).
+        self._ensure_models()
+        response_text = (response or "").strip()
         response_lower = response_text.lower()
 
-        words      = self._tokenize(response_lower)
-        tech_terms = self._technical_terms(words)
-
-        # ── No-answer fast path ──────────────────────────────────────────
+        # If candidate gives no useful answer, provide deterministic correction
+        # (avoids LLM prompt leakage and keeps interview flow stable).
         no_answer_signals = {
-            "", "i don't know", "i dont know", "dont know",
-            "don't know", "no idea", "idk",
+            "",
+            "i don't know",
+            "i dont know",
+            "dont know",
+            "don't know",
+            "no idea",
+            "idk",
         }
         if response_lower in no_answer_signals:
             response_quality = 0.3
+            sentiment = {"label": "POSITIVE"}
             row = self._get_dataset_row_for_question(self.current_question)
             if row and row.get("answer"):
                 improved_answer = row["answer"]
@@ -694,25 +711,34 @@ Return ONLY valid JSON (no markdown) in this exact schema:
                     f"- Explain key operations/properties.\n"
                     f"- Mention complexity and one practical use case."
                 )
-            feedback    = "You said: 'I don't know'. That's okay—here is the correct answer and how to structure it."
+            feedback = "You said: 'I don't know'. That's okay—here is the correct answer and how to structure it."
             suggestions = [
                 "State a direct definition first.",
                 "Add 1-2 core points (operations, properties, or steps).",
                 "Mention complexity and one edge case/use case."
             ]
             next_question = random.choice(self.follow_ups["understanding"])
+        # If spaCy isn't available, we use lightweight heuristics.
+        elif self.nlp is None:
+            response_lower = (response or "").lower()
+            words = [w.strip(".,!?;:\"'()[]{}") for w in response_lower.split() if w.strip()]
+            technical_terms = [w for w in words if len(w) > 4]
 
-        else:
-            # ── Heuristic scoring ────────────────────────────────────────
-            response_quality = self._score_response(words, tech_terms)
+            # Score: length + keyword density.
+            base_score = 0.3
+            term_bonus = min(len(technical_terms) * 0.02, 0.35)
+            length_bonus = min(len(words) / 200, 0.2)
+            response_quality = min(base_score + term_bonus + length_bonus, 1.0)
+
+            sentiment = {"label": "POSITIVE"}
 
             # Feedback
-            if len(tech_terms) < 3:
+            if len(technical_terms) < 3:
                 feedback = "Try to use more technical terms and be more specific in your explanation."
             else:
                 feedback = "Good explanation! Let's explore this further."
 
-            # Follow-up question
+            # Follow-up (will be overridden by dataset question below when available)
             if len(words) < 50:
                 next_question = random.choice(self.follow_ups["understanding"])
             elif "complexity" not in response_lower:
@@ -722,7 +748,7 @@ Return ONLY valid JSON (no markdown) in this exact schema:
 
             # Suggestions
             suggestions: List[str] = []
-            if len(tech_terms) < 3:
+            if len(technical_terms) < 3:
                 suggestions.append("Add more technical terms and be specific about your approach.")
             if len(words) < 50:
                 suggestions.append("Expand your explanation with step-by-step reasoning (how you get from idea to result).")
@@ -731,15 +757,16 @@ Return ONLY valid JSON (no markdown) in this exact schema:
             if not suggestions:
                 suggestions.append("Keep going—try adding trade-offs and complexity details to make your answer stronger.")
 
-            # Improved answer
-            seen, keywords = set(), []
-            for t in tech_terms:
+            # Improved answer template
+            keywords = []
+            seen = set()
+            for t in technical_terms:
                 if t not in seen:
                     seen.add(t)
                     keywords.append(t)
                 if len(keywords) >= 6:
                     break
-            keyword_line  = ", ".join(keywords) if keywords else "key ideas"
+            keyword_line = ", ".join(keywords) if keywords else "key ideas"
             improved_answer = (
                 f"A stronger answer for: {self.current_question}\n"
                 f"- Core idea: explain the main approach in one or two sentences.\n"
@@ -748,31 +775,49 @@ Return ONLY valid JSON (no markdown) in this exact schema:
                 f"- Key terms to include: {keyword_line}\n"
                 f"Try to be clearer and more structured in your explanation."
             )
+        else:
+            # Analyze response using NLP
+            doc = self.nlp(response)
+            if self.sentiment_analyzer is not None:
+                sentiment = self.sentiment_analyzer(response)[0]
+            else:
+                # Fallback when transformers can't load: treat as neutral/positive.
+                sentiment = {"label": "POSITIVE"}
 
-        # ── Update confidence tracker ────────────────────────────────────
+            # Calculate response quality score
+            response_quality = self._calculate_response_quality(doc, sentiment)
+
+            # Generate feedback and follow-up based on response analysis
+            feedback = self._generate_feedback(doc, sentiment)
+            next_question = self._generate_follow_up(doc, sentiment, response)
+            suggestions = self._generate_suggestions(doc, sentiment, response_quality)
+            improved_answer = self._generate_improved_answer(doc, sentiment)
+        
+        # Update confidence metrics
         self.confidence_tracker.update_confidence(
             self.current_topic,
             response_quality,
             response_quality=response_quality
         )
-
-        # ── Store history ────────────────────────────────────────────────
+        
+        # Store response in history
         self.interview_history.append({
-            "topic":     self.current_topic,
-            "question":  self.current_question,
-            "response":  response,
-            "sentiment": {"label": "POSITIVE" if response_quality >= 0.5 else "NEGATIVE"},
-            "quality":   response_quality
+            "topic": self.current_topic,
+            "question": self.current_question,
+            "response": response,
+            "sentiment": sentiment,
+            "quality": response_quality
         })
-
-        # ── Prefer dataset question as next question ─────────────────────
+        
+        # If we have a dataset, prefer using the next dataset row as the next interview question.
         if self.dataset_questions:
             row = self.dataset_questions[self.dataset_index % len(self.dataset_questions)]
             self.current_topic = row["category"] or self.current_topic
             next_question = row["question"]
             self.dataset_index = (self.dataset_index + 1) % len(self.dataset_questions)
-
-        # ── Optional Groq upgrade ────────────────────────────────────────
+        
+        # Optional: use Groq to upgrade correction and suggestions.
+        # If it fails, we keep the heuristic outputs (backend stays stable).
         groq_payload = self._try_groq_interview_update(
             question=self.current_question,
             user_answer=response,
@@ -782,55 +827,129 @@ Return ONLY valid JSON (no markdown) in this exact schema:
             heuristic_improved_answer=improved_answer,
         )
         if groq_payload:
-            feedback      = groq_payload.get("feedback",      feedback)
+            feedback = groq_payload.get("feedback", feedback)
             next_question = groq_payload.get("next_question", next_question)
             improved_answer = groq_payload.get("improved_answer", improved_answer)
-            suggestions   = groq_payload.get("suggestions",   suggestions)
+            suggestions = groq_payload.get("suggestions", suggestions)
 
-        # Advance interview state
+        # Advance interview state so the next evaluation uses the question we just returned.
         self.current_question = next_question
 
+        # Keep `feedback` + `next_question` keys for backward compatibility.
         return {
-            "feedback":        feedback,
-            "next_question":   next_question,
-            "suggestions":     suggestions,
+            "feedback": feedback,
+            "next_question": next_question,
+            "suggestions": suggestions,
             "improved_answer": improved_answer,
             "confidence_score": response_quality,
-            "topic":           self.current_topic
+            "topic": self.current_topic
         }
+
+    def _calculate_response_quality(self, doc: spacy.tokens.Doc, sentiment: Dict) -> float:
+        """Calculate a quality score for the response."""
+        # Base score from sentiment
+        base_score = 0.5 if sentiment["label"] == "POSITIVE" else 0.3
+        
+        # Technical terms bonus
+        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
+        term_bonus = min(len(technical_terms) * 0.1, 0.3)
+        
+        # Length bonus
+        length_bonus = min(len(doc) / 200, 0.2)
+        
+        return min(base_score + term_bonus + length_bonus, 1.0)
+
+    def _generate_feedback(self, doc: spacy.tokens.Doc, sentiment: Dict) -> str:
+        """Generate feedback based on response analysis."""
+        # Check for technical terms
+        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
+        
+        if len(technical_terms) < 3:
+            return "Try to use more technical terms and be more specific in your explanation."
+        elif sentiment["label"] == "NEGATIVE":
+            return "Your explanation seems unclear. Try to break down the problem into smaller parts."
+        else:
+            return "Good explanation! Let's explore this further."
+
+    def _generate_follow_up(self, doc: spacy.tokens.Doc, sentiment: Dict, response_text: str) -> str:
+        """Generate appropriate follow-up question based on response analysis."""
+        # Check response length and complexity
+        if len(doc) < 50:
+            return random.choice(self.follow_ups["understanding"])
+        elif "complexity" not in response_text.lower():
+            return random.choice(self.follow_ups["optimization"])
+        else:
+            return random.choice(self.follow_ups["implementation"])
+
+    def _generate_suggestions(self, doc: spacy.tokens.Doc, sentiment: Dict, response_quality: float) -> List[str]:
+        """Heuristic suggestions (kept lightweight: no extra model calls)."""
+        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
+        suggestions: List[str] = []
+
+        if len(technical_terms) < 3:
+            suggestions.append("Add more technical terms and be specific about your approach.")
+
+        if len(doc) < 50:
+            suggestions.append("Expand your explanation with step-by-step reasoning (how you get from idea to result).")
+
+        if sentiment["label"] == "NEGATIVE":
+            suggestions.append("Clarify your structure: intro -> approach -> key steps -> complexity/edge cases.")
+
+        if response_quality < 0.6:
+            suggestions.append("State the time/space complexity and mention at least one edge case.")
+
+        if not suggestions:
+            suggestions.append("Keep going—try adding trade-offs and complexity details to make your answer stronger.")
+
+        return suggestions
+
+    def _generate_improved_answer(self, doc: spacy.tokens.Doc, sentiment: Dict) -> str:
+        """Generate an 'improved answer' template using extracted keywords."""
+        technical_terms = [token.text for token in doc if token.pos_ in ["NOUN", "VERB"]]
+        # De-duplicate while preserving order (small heuristic for nicer output)
+        seen = set()
+        keywords = []
+        for t in technical_terms:
+            lt = t.lower()
+            if lt not in seen:
+                seen.add(lt)
+                keywords.append(t)
+            if len(keywords) >= 6:
+                break
+
+        keyword_line = ", ".join(keywords) if keywords else "key ideas"
+        clarity_line = "Try to be clearer and more structured in your explanation." if sentiment["label"] == "NEGATIVE" else "Your core idea is good—make it more complete and precise."
+
+        return (
+            f"A stronger answer for: {self.current_question}\n"
+            f"- Core idea: explain the main approach in one or two sentences.\n"
+            f"- Steps: walk through the key steps (what you do first, next, and why).\n"
+            f"- Complexity/edge cases: mention time/space complexity and at least one edge case.\n"
+            f"- Key terms to include: {keyword_line}\n"
+            f"{clarity_line}"
+        )
 
     def get_interview_summary(self) -> Dict:
         """Return a summary of the interview session."""
-        if not self.interview_history:
-            return {
-                "total_questions": 0,
-                "topics_covered": [],
-                "average_sentiment": 0,
-                "confidence_summary": self.confidence_tracker.get_confidence_summary()
-            }
         return {
             "total_questions": len(self.interview_history),
-            "topics_covered":  list(set(item["topic"] for item in self.interview_history)),
-            "average_sentiment": sum(
-                1 for item in self.interview_history
-                if item["sentiment"]["label"] == "POSITIVE"
-            ) / len(self.interview_history),
+            "topics_covered": list(set(item["topic"] for item in self.interview_history)),
+            "average_sentiment": sum(1 for item in self.interview_history if item["sentiment"]["label"] == "POSITIVE") / len(self.interview_history),
             "confidence_summary": self.confidence_tracker.get_confidence_summary()
         }
 
     def start_code_practice(self, topic: str, difficulty: str = "easy") -> Dict:
         """Start a coding practice session."""
-        self.current_code_topic = topic
         problem = self.code_env.get_problem(topic, difficulty)
         if not problem:
             return {"success": False, "message": "No problems available for this topic and difficulty"}
-
+        
         return {
             "success": True,
             "problem": {
-                "title":       problem["title"],
+                "title": problem["title"],
                 "description": problem["description"],
-                "template":    self.code_env.get_code_template(self.code_env.current_language)
+                "template": self.code_env.get_code_template(self.code_env.current_language)
             }
         }
 
@@ -855,10 +974,10 @@ Return ONLY valid JSON (no markdown) in this exact schema:
             if groq_code:
                 result.update(groq_code)
 
-        if self.current_code_topic and not result.get("skipped_tests"):
+        if self.current_topic and not result.get("skipped_tests"):
             try:
                 self.confidence_tracker.update_confidence(
-                    self.current_code_topic,
+                    self.current_topic,
                     result["success"],
                     problem_success=result["success"],
                 )
@@ -869,33 +988,31 @@ Return ONLY valid JSON (no markdown) in this exact schema:
 
     def get_confidence_dashboard(self) -> Dict:
         """Get the confidence dashboard data."""
-        focus_topic = self.current_topic or self.current_code_topic
         return {
             "summary": self.confidence_tracker.get_confidence_summary(),
             "improvement_plan": {
                 topic: self.confidence_tracker.get_improvement_plan(topic)
                 for topic in self.confidence_tracker.improvement_areas
             },
-            "motivational_prompt": self.confidence_tracker.get_motivational_prompt(focus_topic),
-            "plot_path": self.confidence_tracker.generate_confidence_plot(focus_topic)
+            "motivational_prompt": self.confidence_tracker.get_motivational_prompt(self.current_topic),
+            "plot_path": self.confidence_tracker.generate_confidence_plot(self.current_topic)
         }
-
 
 # Example usage
 if __name__ == "__main__":
     interviewer = AIInterviewer()
-
+    
     # Start interview
     print(interviewer.start_interview())
-
+    
     # Example response
     response = "To find the second largest element, I would first sort the array in descending order and then return the second element. The time complexity would be O(n log n) due to sorting."
-
+    
     # Analyze response
     result = interviewer.analyze_response(response)
     print(f"\nFeedback: {result['feedback']}")
     print(f"Next Question: {result['next_question']}")
-
+    
     # Start code practice
     practice = interviewer.start_code_practice("arrays", "easy")
     if practice["success"]:
@@ -904,7 +1021,7 @@ if __name__ == "__main__":
         print(f"Description: {practice['problem']['description']}")
         print("\nTemplate:")
         print(practice['problem']['template'])
-
+        
         # Example solution
         solution = """
 def find_second_largest(arr):
@@ -916,7 +1033,7 @@ def find_second_largest(arr):
         print("\nEvaluating solution...")
         result = interviewer.submit_solution(solution)
         print("Evaluation results:", json.dumps(result, indent=2))
-
+    
     # Get confidence dashboard
     dashboard = interviewer.get_confidence_dashboard()
     print("\nConfidence Dashboard:")
@@ -924,7 +1041,7 @@ def find_second_largest(arr):
     print("Improvement Plan:", json.dumps(dashboard["improvement_plan"], indent=2))
     print("Motivational Prompt:", dashboard["motivational_prompt"])
     print("Confidence Plot saved to:", dashboard["plot_path"])
-
+    
     # Get interview summary
     summary = interviewer.get_interview_summary()
-    print("\nInterview Summary:", summary)
+    print("\nInterview Summary:", summary) 
